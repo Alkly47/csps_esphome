@@ -2,7 +2,7 @@
  * @file KCORES_CSPS.h
  *
  * This is a library for the CSPS PMBUS
- * Written by AlphaArea
+ * Written by AlphaArea, Modified by Alkly47
  *
  * GPL license, all text here must be included in any redistribution.
  *
@@ -106,7 +106,15 @@ public:
 
   uint32_t getRunTime()
   {
-    return readCSPSword(0x30);
+    return readCSPSword(0x1b);
+    //return readCSPSword(0x30) / 2;
+    // Strangely, this register maxes out with a 16-bit integer (65535) and counts exactly 2 ticks per second, hence the divide by 2.
+    // Therefore, this register is kind of pointless: 32767.5 seconds max, a little more than 9 hours, then the number simply stops changing....
+  };
+
+  uint32_t getPeakAmpsOut()
+  {
+    return readCSPSword(0x36) / 64;
   };
 
   void setFanRPM(uint16_t rpm)
