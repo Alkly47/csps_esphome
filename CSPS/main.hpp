@@ -1,7 +1,7 @@
 #include "KCORES_CSPS.h"
 #include "esphome.h"
 
-CSPS PowerSupply(0x5E, 0x56, true);
+CSPS PowerSupply(0x5F, 0x57, true);
 
 class CSPSPower : public PollingComponent {
   public:
@@ -18,10 +18,10 @@ class CSPSPower : public PollingComponent {
     Sensor *voltage_out = new Sensor();
     Sensor *voltage_in = new Sensor();
 
-    CSPSPower(): PollingComponent(15000) { }
+    CSPSPower(): PollingComponent(2000) { }
 
     void setup() override {
-      Wire.setClock(10000);
+      Wire.setClock(100000);
 
       ESP_LOGD("Power Supply", "Spare Part No: %s", PowerSupply.getSPN().c_str());
       ESP_LOGD("Power Supply", "Manufacture Date: %s", PowerSupply.getMFG().c_str());
