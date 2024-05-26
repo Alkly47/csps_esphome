@@ -7,7 +7,6 @@ class CSPSPower : public PollingComponent {
   public:
   	TextSensor *name = new TextSensor();
   	TextSensor *ct = new TextSensor();
-  	
     Sensor *fan_speed = new Sensor();
     Sensor *temp1 = new Sensor();
     Sensor *temp2 = new Sensor();
@@ -21,7 +20,6 @@ class CSPSPower : public PollingComponent {
     CSPSPower(): PollingComponent(2000) { }
 
     void setup() override {
-      Wire.setClock(100000);
 
       ESP_LOGD("Power Supply", "Spare Part No: %s", PowerSupply.getSPN().c_str());
       ESP_LOGD("Power Supply", "Manufacture Date: %s", PowerSupply.getMFG().c_str());
