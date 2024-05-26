@@ -1,119 +1,262 @@
 esphome:
-  name: nodetest1
+  name: psu-hp-pmbus
+  friendly_name: PSU-HP-PMbus
+  libraries:
+    - Wire
   includes:
-    - CSPS/main.hpp
+    - CSPS/main.h
     - CSPS/KCORES_CSPS.h
     - CSPS/KCORES_CSPS.cpp
     
-  libraries:
-    - "Wire"
-
 esp8266:
-  board: nodemcuv2
+  board: d1_mini
 
 # Enable logging
 logger:
 
 # Enable Home Assistant API
 api:
-  password: 'API密码'
+  encryption:
+    key: !secret api_key
 
 ota:
-  password: "OTAMIM"
-
-web_server:
-  port: 80
+  password: !secret ota_password
 
 wifi:
-  networks:
-  - ssid: "WIFI信号1"
-    password: "WIFI密码"
-  - ssid: "WIFI信号2"
-    password: "WIFI密码"
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
-    ssid: "热点"
-    password: "热点密码"
+    ssid: "Psu-Hp-Pmbus"
+    password: "123456789"
 
 captive_portal:
+improv_serial:
 
-time:
-  - platform: sntp
-    id: nodetest1_time
-    servers: 
-     - ntp1.aliyun.com
-     - ntp.aliyun.com
-     - cn.pool.ntp.org
+
+status_led:
+  pin:
+    number: D4
+    inverted: true
 
 i2c:
-  sda: D5
-  scl: D6
-  scan: true
-  id: bus_a
+  - frequency: 200kHz # 200kHz seems to be maximum stable bus speed for the PSU; faster results in complete bus lockup and esp crash (without the ability to reboot) You've been warned.
+
 
 number:
   - platform: template
     id: csps_rpm
     name: "Power Fan RPM"
     optimistic: true
-    min_value: 0
-    max_value: 20000
+    min_value: 1500
+    max_value: 18000
     step: 500
     on_value:
       then:
         - lambda: |-
-            auto power = new CSPSPower();
-            App.register_component(power);
-            power->set_fan_rpm(id(csps_rpm).state);
+            auto fan = new CSPSFan();
+            App.register_component(fan);
+            fan->set_fan_rpm(id(csps_rpm).state);
 
 text_sensor:
+  - platform: wifi_info
+    ip_address: 
+      name: esp-IP
+    mac_address: 
+      name: esp-MAC
+    ssid: 
+      name: esp-SSID
   - platform: custom
     lambda: |-
-      auto power = new CSPSPower();
-      App.register_component(power);
-      return {power->name,power->ct};
+      auto text = new CSPStext();
+      App.register_component(text);
+      return {text->name,text->mfr,text->mfg,text->ct,text->spn,text->okn};
 
     text_sensors:
-    - name: "Power Name"
-    - name: "CT Code"
+    - name: "PSU Name"
+    - name: "Manufacturer"
+    - name: "Manuf. Date"
+    - name: "CT Bar Code"
+    - name: "Spare Part No."
+    - name: "Option Kit No."
+
 
 sensor:
   - platform: wifi_signal
     name: "WiFi Signal Sensor"
     update_interval: 60s
-    
+
   - platform: custom
     lambda: |-
-      auto power = new CSPSPower();
-      App.register_component(power);
-      return {power->fan_speed, power->temp1, power->temp2, power->power_out, power->power_in, power->current_out, power->current_in, power->voltage_out, power->voltage_in};
+      auto other = new CSPSOther();
+      App.register_component(other);
+      return {other->pao};
+
+    sensors:
+    - name: "Peak Amps Out"
+      id: peak_amps_out
+      accuracy_decimals: 1
+      device_class: current
+      unit_of_measurement: "A"
+
+  - platform: custom
+    lambda: |-
+      auto fan = new CSPSFan();
+      App.register_component(fan);
+      return {fan->fan_speed};
 
     sensors:
     - name: "Fan Speed"
+      id: fan_speed
       accuracy_decimals: 0
+      device_class: speed
       unit_of_measurement: RPM
-    - name: "Temp 1"
+      filters: 
+        - or:
+          - throttle: 5s
+          - delta: 5.0
+
+  - platform: custom
+    lambda: |-
+      auto temp = new CSPSTemp();
+      App.register_component(temp);
+      return {temp->temp1, temp->temp2};
+    sensors: 
+    - name: "Intake Air Temp"
+      id: temp1
       accuracy_decimals: 1
+      device_class: temperature
       unit_of_measurement: °C
-    - name: "Temp 2"
+      filters: 
+        - or:
+          - throttle: 15s
+          - delta: .5
+    - name: "Internal PSU Temp"
+      id: temp2
       accuracy_decimals: 1
+      device_class: temperature
       unit_of_measurement: °C
+      filters: 
+        - or:
+          - throttle: 15s
+          - delta: .5
+
+  - platform: custom
+    lambda: |-
+      auto powerout = new CSPSPowerOut();
+      App.register_component(powerout);
+      return {powerout->power_out, powerout->current_out, powerout->voltage_out};
+
+    sensors:
     - name: "Power Out"
-      accuracy_decimals: 0
+      id: power_out
+      accuracy_decimals: 1
+      device_class: power
       unit_of_measurement: W
-    - name: "Power In"
-      accuracy_decimals: 0
-      unit_of_measurement: W
+      filters:
+        #- filter_out: 20 
+        - or:
+          - throttle: 15s
+          - delta: .5
     - name: "Current Out"
+      id: current_out
       accuracy_decimals: 1
+      device_class: current
       unit_of_measurement: A
-    - name: "Current In"
-      accuracy_decimals: 1
-      unit_of_measurement: A
+      filters:
+        - filter_out: 3 
+        - or:
+          - throttle: 15s
+          - delta: .1
     - name: "Voltage Out"
+      id: voltage_out
       accuracy_decimals: 1
+      device_class: voltage
       unit_of_measurement: V
+      filters:
+        - filter_out: 1.5 
+        - or:
+          - throttle: 5s
+          - delta: .1
+
+  - platform: custom
+    lambda: |-
+      auto powerin = new CSPSPowerIn();
+      App.register_component(powerin);
+      return {powerin->power_in, powerin->current_in, powerin->voltage_in};
+    sensors: 
+    - name: "Power In"
+      id: power_in
+      accuracy_decimals: 1
+      device_class: power
+      unit_of_measurement: W
+      filters:
+        - or:
+          - throttle: 15s
+          - delta: .5
+    - name: "Current In"
+      id: current_in
+      accuracy_decimals: 1
+      device_class: current
+      unit_of_measurement: A
+      filters:
+        - filter_out: 3 
+        - or:
+          - throttle: 15s
+          - delta: .1    
     - name: "Voltage In"
+      id: voltage_in
       accuracy_decimals: 1
+      device_class: voltage
       unit_of_measurement: V
+      filters:
+        - filter_out: 1.5 
+        - or:
+          - throttle: 5s
+          - delta: .1
+
+font:
+  - file: "fonts/Roboto-Regular.ttf"
+    id: body_font
+    size: 12
+    bpp: 2
+
+  - file: "fonts/Roboto-Regular.ttf"
+    id: header_font
+    size: 15
+    bpp: 2
+    
+display:
+  - platform: ssd1306_i2c
+    model: "SSD1306 128x64"
+    id: oled_display
+    address: 0x3C
+    update_interval: 1s
+    pages: 
+      - id: page1
+        lambda: |-
+          it.print(0, 0, id(header_font), "THERMALS");
+          it.printf(0, 20, id(body_font), "Intake Temp:   %.2f° C", id(temp1).state);
+          it.printf(0, 34, id(body_font), "PSU Temp:   %.2f° C", id(temp2).state);
+          it.printf(0, 48, id(body_font), "Fan:   %.0f rpm", id(fan_speed).state);
+      - id: page2
+        lambda: |-
+          it.print(0, 0, id(header_font), "AC INPUT");
+          it.printf(0, 20, id(body_font), "Voltage:   %.3f V", id(voltage_in).state);
+          it.printf(0, 34, id(body_font), "Current:   %.2f A", id(current_in).state);
+          it.printf(0, 48, id(body_font), "Power:   %.1f W", id(power_in).state);
+      - id: page3
+        lambda: |-
+          it.print(0, 0, id(header_font), "DC OUTPUT");
+          it.printf(0, 20, id(body_font), "Voltage:   %.3f V", id(voltage_out).state);
+          it.printf(0, 34, id(body_font), "Current:   %.2f A", id(current_out).state);
+          it.printf(0, 48, id(body_font), "Power:   %.1f W", id(power_out).state);
+
+
+interval:
+  - interval: 10s
+    then:
+      - display.page.show_next: oled_display
+      - component.update: oled_display
+
