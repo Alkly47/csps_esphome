@@ -2,7 +2,7 @@
  * @file KCORES_CSPS.h
  *
  * This is a library for the CSPS PMBUS
- * Written by AlphaArea, Modified by Alkly47
+ * Written by AlphaArea
  *
  * GPL license, all text here must be included in any redistribution.
  *
