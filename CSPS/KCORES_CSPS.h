@@ -2,7 +2,7 @@
  * @file KCORES_CSPS.h
  *
  * This is a library for the CSPS PMBUS
- * Written by AlphaArea
+ * Written by AlphaArea, Modified by Alkly47
  *
  * GPL license, all text here must be included in any redistribution.
  *
@@ -76,7 +76,7 @@ public:
 
   float getOutputVoltage()
   {
-    return (float)readCSPSword(0x0E) / 256;
+    return (float)readCSPSword(0x0E) / 254.5;
   };
 
   float getOutputCurrent()
